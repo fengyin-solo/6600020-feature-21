@@ -1,6 +1,25 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import type { Device, Alarm, ModbusRegister } from '../types'
+
+const STORAGE_KEY_METRICS = 'modbus_selected_metrics'
+const STORAGE_KEY_TIME_WINDOW = 'modbus_time_window'
+
+function loadPersistedMetrics(): Set<string> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_METRICS)
+    if (raw) return new Set(JSON.parse(raw) as string[])
+  } catch {}
+  return new Set()
+}
+
+function loadPersistedTimeWindow(): number {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_TIME_WINDOW)
+    if (raw) return Number(raw) || 5
+  } catch {}
+  return 5
+}
 
 export const useModbusStore = defineStore('modbus', () => {
   const devices = ref<Device[]>([])
@@ -9,8 +28,16 @@ export const useModbusStore = defineStore('modbus', () => {
   const isPolling = ref(false)
   const pollInterval = ref(1000)
   const selectedDevice = ref<Device | null>(null)
-  const selectedMetricNames = ref<Set<string>>(new Set())
-  const timeWindowMinutes = ref(5)
+  const selectedMetricNames = ref<Set<string>>(loadPersistedMetrics())
+  const timeWindowMinutes = ref(loadPersistedTimeWindow())
+
+  watch(selectedMetricNames, (names) => {
+    localStorage.setItem(STORAGE_KEY_METRICS, JSON.stringify([...names]))
+  }, { deep: true })
+
+  watch(timeWindowMinutes, (mins) => {
+    localStorage.setItem(STORAGE_KEY_TIME_WINDOW, String(mins))
+  })
 
   const criticalAlarms = computed(() => alarms.value.filter(a => a.level === 'critical' && !a.acknowledged))
   const onlineDevices = computed(() => devices.value.filter(d => d.online))
@@ -51,7 +78,9 @@ export const useModbusStore = defineStore('modbus', () => {
     ]
     selectedDevice.value = devices.value[0]
     if (selectedMetricNames.value.size === 0 && devices.value[0].registers.length > 0) {
-      selectedMetricNames.value.add(devices.value[0].registers[0].name)
+      const next = new Set(selectedMetricNames.value)
+      next.add(devices.value[0].registers[0].name)
+      selectedMetricNames.value = next
     }
   }
 
