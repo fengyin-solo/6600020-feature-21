@@ -9,9 +9,12 @@ export const useModbusStore = defineStore('modbus', () => {
   const isPolling = ref(false)
   const pollInterval = ref(1000)
   const selectedDevice = ref<Device | null>(null)
+  const selectedMetricNames = ref<Set<string>>(new Set())
+  const timeWindowMinutes = ref(5)
 
   const criticalAlarms = computed(() => alarms.value.filter(a => a.level === 'critical' && !a.acknowledged))
   const onlineDevices = computed(() => devices.value.filter(d => d.online))
+  const timeWindowMs = computed(() => timeWindowMinutes.value * 60 * 1000)
 
   function initMockDevices() {
     devices.value = [
@@ -47,6 +50,23 @@ export const useModbusStore = defineStore('modbus', () => {
       },
     ]
     selectedDevice.value = devices.value[0]
+    if (selectedMetricNames.value.size === 0 && devices.value[0].registers.length > 0) {
+      selectedMetricNames.value.add(devices.value[0].registers[0].name)
+    }
+  }
+
+  function toggleMetric(metricName: string) {
+    const next = new Set(selectedMetricNames.value)
+    if (next.has(metricName)) {
+      next.delete(metricName)
+    } else {
+      next.add(metricName)
+    }
+    selectedMetricNames.value = next
+  }
+
+  function setTimeWindow(minutes: number) {
+    timeWindowMinutes.value = minutes
   }
 
   function simulatePoll() {
@@ -92,7 +112,9 @@ export const useModbusStore = defineStore('modbus', () => {
 
   return {
     devices, alarms, historyData, isPolling, pollInterval, selectedDevice,
+    selectedMetricNames, timeWindowMinutes, timeWindowMs,
     criticalAlarms, onlineDevices,
-    initMockDevices, simulatePoll, acknowledgeAlarm, toggleDevice
+    initMockDevices, simulatePoll, acknowledgeAlarm, toggleDevice,
+    toggleMetric, setTimeWindow
   }
 })
